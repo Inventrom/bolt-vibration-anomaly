@@ -1,0 +1,128 @@
+[
+    {
+        "id": "804dcb8e.aadfc8",
+        "type": "debug",
+        "z": "514bbaac.129154",
+        "name": "debug",
+        "active": true,
+        "console": "true",
+        "complete": "payload",
+        "x": 1200,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "f72ed517.84a078",
+        "type": "e-mail",
+        "z": "514bbaac.129154",
+        "server": "smtp.gmail.com",
+        "port": "465",
+        "secure": true,
+        "name": "botmayank@gmail.com",
+        "dname": "email_alert",
+        "x": 1190,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "80c93277.04f5a",
+        "type": "function",
+        "z": "514bbaac.129154",
+        "name": "zscore_calc",
+        "func": "var samples = context.get('samples')||[];\nvar window_length = 10;\n\n// console.log(\"N: samples.length:\");\n// console.log(samples.length);\nsamples.push(parseInt(msg.payload.value));\ncontext.set('samples', samples);\n\nvar min = context.get('min') || 0;\nvar max = context.get('max') || 1000;\n\ncontext.set('min', Math.min(min, parseInt(msg.payload.value)));\ncontext.set('max', Math.max(max, parseInt(msg.payload.value)));\n\nif(samples.length > window_length){\n    var sum = 0;\n    \n    for (var i = 0; i< samples.length; i++){\n        sum += samples[i];\n    }\n    var n = samples.length;\n    var mean = sum/n;\n    \n    // sd = Math.sqrt(samples.map(x=>Math.pow(mean-x, 2)).reduce((a,b)=>a+b, 0));\n    \n    var sd = 0;\n    for (var i = 0; i< samples.length; i++){\n        sd += ((mean-samples[i])*(mean-samples[i]));\n    }\n    sd = Math.sqrt(sd/n);\n    samples.shift();\n    \n    msg.zscore = (mean - parseInt(msg.payload.value))/(sd + 0.001);\n    console.log(\"vibration, zscore, min, max, sum, n, sd, mean\");\n    \n    msg.payload = parseInt(msg.payload.value) + \":\" + msg.zscore + \":\" + min + \":\" + max + \":\" + sum + \":\" + n + \":\" + sd + \":\" + mean;\n\n    return msg;\n}\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 850,
+        "y": 300,
+        "wires": [
+            [
+                "6c5a6c1.91e6594"
+            ]
+        ]
+    },
+    {
+        "id": "6c5a6c1.91e6594",
+        "type": "function",
+        "z": "514bbaac.129154",
+        "name": "zscore_check",
+        "func": "var threshold = 0.5;\nvar alert_count = context.get('alert_count')||0;\nwindow_length = 10;\n\nif((Math.abs(msg.zscore) > threshold)&& (alert_count >= window_length) ){\n    msg.payload = \"ALERT! Anomaly detected!! Z-Score (Threshold 0.5): \" + msg.zscore;\n    alert_count = 0;\n    context.set('alert_count', alert_count);\n    return msg;\n}\n\ncontext.set('alert_count', ++alert_count);",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1040,
+        "y": 220,
+        "wires": [
+            [
+                "804dcb8e.aadfc8",
+                "f72ed517.84a078"
+            ]
+        ]
+    },
+    {
+        "id": "51714e2e.3697",
+        "type": "function",
+        "z": "514bbaac.129154",
+        "name": "get_data",
+        "func": "// msg.payload.d = \"{\\\"vibration\\\":\"+`msg.payload.value` + \" }\";\n// msg.payload.d = {\"vibration\" : 200};\nconsole.log(msg.payload);\nmsg.payload = JSON.parse(msg.payload);\n// msg.payload.d.vibration = msg.payload.value;\nconsole.log(\"Message payload\");\nconsole.log(msg.payload);\n\nconsole.log(\"Message payload\");\nconsole.log(parseInt(msg.payload.value));\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 640,
+        "y": 300,
+        "wires": [
+            [
+                "80c93277.04f5a"
+            ]
+        ]
+    },
+    {
+        "id": "bb4e60c5.55615",
+        "type": "inject",
+        "z": "514bbaac.129154",
+        "name": "vibration_sensor_trigger",
+        "topic": "Vibration Query Injector ",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "1",
+        "crontab": "",
+        "once": false,
+        "x": 150,
+        "y": 140,
+        "wires": [
+            [
+                "80642a74.8564e8"
+            ]
+        ]
+    },
+    {
+        "id": "20f8c382.c2fa8c",
+        "type": "http request",
+        "z": "514bbaac.129154",
+        "name": "get_bolt_data",
+        "method": "GET",
+        "ret": "txt",
+        "url": "https://cloud.boltiot.com/remote/{{api_key}}/serialWR?data=GVD&till=10&baud=9600&deviceName={{deviceName}}",
+        "tls": "",
+        "x": 400,
+        "y": 300,
+        "wires": [
+            [
+                "51714e2e.3697"
+            ]
+        ]
+    },
+    {
+        "id": "80642a74.8564e8",
+        "type": "function",
+        "z": "514bbaac.129154",
+        "name": "set_bolt_params",
+        "func": "msg.api_key = 'YOUR_API_KEY_HERE';\nmsg.deviceName = 'BOLT3432405';\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 170,
+        "y": 260,
+        "wires": [
+            [
+                "20f8c382.c2fa8c"
+            ]
+        ]
+    }
+]
